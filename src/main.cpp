@@ -17,7 +17,7 @@ WiFiClient client;
 ThingsBoard tb(client);
 
 int ADXLIGHT = 0x10; // I2C address of light
-int ADXTYH = 0x44;//I2C address of tempeture & humidity
+int ADXTYH = 0x44; //I2C address of tempeture & humidity
 int ledRPin = 4;
 int ledGPin = 17;
 int ledBPin = 16;
@@ -29,13 +29,15 @@ byte TYHWCommand[2] = {0x24,0x16};
 byte TYH[6];
 #define Power_Register 0X00 
 
-int weight_pin = 36;  //ADC0
+int weightPin = 36;  //ADC0
 int resistorWater1 = 37; //ADC1
 int resistorWater2  = 38 ; //ADC2
-int tempeture_pin  = 39 ; //ADC3
+int tempIntPin  = 39 ; //ADC3
+int waterPin  = 32 ; //ADC4
 int weight;
 int tempInt;
 int humInt;
+int relayPin = 13;
 
 void initOta();
 void initI2C();
@@ -52,28 +54,31 @@ void ground();
 void getWeight();
 void getHumInt();
 void getTempInt();
+void checkWatering();
 
 void setup() {
   Serial.begin(115200);
-  initOta();
+  analogReadResolution(10);
+  //initOta();
   initI2C();
   initGPIOs();
 }
 
 void loop() {
-  ArduinoOTA.handle();
-  if ( !tb.connected() ) {
-    reconnect();
-  }
+  // ArduinoOTA.handle();
+  // if ( !tb.connected() ) {
+  //   reconnect();
+  // }
   scheduler();
   delay(2000);
 }
 
 void initI2C(){
   Wire.begin();
-  Wire.beginTransmission(ADXTYH); //Begin transmission to the sensor
+  Wire.beginTransmission(ADXLIGHT); //Begin transmission to the sensor
   Wire.write(Power_Register);     //Arduino stuff??? go to register
-  Wire.write(0x0000);
+  byte a[] = {0,0};
+  Wire.write(a,2);
   Wire.endTransmission(); // Power up
 }
 
@@ -152,10 +157,10 @@ void reconnect() {
 void scheduler() {
   enviroment();
   delay(500);
-  ground();
-  delay(500);
-  sendData();
-  delay(2000);
+  //ground();
+  //delay(500);
+  // sendData();
+  // delay(2000);
 }
 
 void sendData() {
@@ -176,10 +181,13 @@ void getTYH() {
 
   int n = Wire.requestFrom(ADXTYH,6); //number of received byte
 
-  if (n != 6)
-    Serial.println("Error,didn't receive 6 bytes");
-  for(int i = 0;i <6 ; i++)
-      TYH[i] = Wire.read();
+  printf("num bytes %d\n", n);
+
+  byte a[] = {0,0,0,0,0,0};
+  Wire.readBytes(a,6);
+  //printf(">>>>> %d", n);
+  for(int i = 0;i < 6 ; i++)
+      TYH[i] = a[i];
 }
 
 void getLIGHT() {
@@ -198,6 +206,12 @@ void initGPIOs() {
   pinMode(ledRPin, OUTPUT);
   pinMode(ledGPin, OUTPUT);
   pinMode(ledBPin, OUTPUT);
+  pinMode(relayPin, OUTPUT);
+
+  digitalWrite (ledRPin, LOW);
+  digitalWrite (ledGPin, LOW);
+  digitalWrite (ledBPin, LOW);
+  digitalWrite (relayPin, LOW);
 }
 
 void leds(int turnOn) {
@@ -220,16 +234,17 @@ float truncate(float n) {
 
 void enviroment(){
   getTYH();
-  tempExt = (int)(TYH[0] * 256) + (int)(TYH[1]);
-  tempExt = truncate(-45 + (175 * tempExt) / (pow(2, 16) - 1));
-  humExt = (int)(TYH[3] * 256) + (int)(TYH[4]);
+  tempExt = (int)(TYH[0] * 256.0) + (int)(TYH[1]);
+  tempExt = truncate(-45 + (175 * tempExt) / (float)(pow(2, 16) - 1));
+  humExt = (int)(TYH[3] * 256.0) + (int)(TYH[4]);
   humExt = truncate((100 * humExt) / (pow(2, 16) - 1));
   printf("Temperatura : %d \n",tempExt);
-  printf("Humedad : %d \n",tempExt);
+  printf("Humedad : %d \n",humExt);
   delay(500);
 
   getLIGHT();
   brightness = (int)(light[0] * 256) + (int)(light[1]);
+  printf("Luz: %d \n",brightness);
   if(brightness < 200) {
     leds(1);
   }else {
@@ -241,27 +256,51 @@ void ground() {
   getWeight();
   delay(500);
   getHumInt();
-  delay(500);
-  getTempInt();
-  delay(500);
+  checkWatering();
+  //delay(500);
+  // getTempInt();
+  // delay(500);
 }
 
 void getWeight(){
-  int adc_value = analogRead(weight_pin);
-  weight = (adc_value - 102) / 35;
+  int adc_value = analogRead(weightPin);
+  printf("Dato: %d\n", adc_value);
+  weight = (adc_value - 60 ) / 9.9;
+  printf("Carga: %d\n", weight);
 }
 
 void getHumInt(){
   int res1 = analogRead(resistorWater1);
   int res2 = analogRead(resistorWater2);
+  printf("Dato 1: %d\n", res1);
+  printf("Dato 2: %d\n", res2);
 
-  res1 = 100 - ((res1-468)/(1023-468))*100;
-  res2 = 100 - ((res2-468)/(1023-468))*100;
+
+  res1 = 100 - ((res1-170.0)/(1023.0-170.0))*100.0;
+  res2 = 100 - ((res2-170.0)/(1023.0-170.0))*100.0;
+
+  printf("H 1: %d\n", res1);
+  printf("H 2: %d\n", res2);
 
   humInt = (res1 + res2) / 2;
 }
 
 void getTempInt() {
-    int adc_value = analogRead(tempeture_pin);
-    tempInt = (2200 * ((1023 / adc_value ) - 1) -1000) / 3.875;
+    int adc_value = analogRead(tempIntPin);
+    printf("Dato: %d \n", adc_value);
+    tempInt = ((10000.0 * ((1023.0 / (adc_value + 1) ) - 1)) - 1000) / 3.875;
+    printf("Temperatura interior: %d \n", tempInt);
+}
+
+void checkWatering() {
+  int water = analogRead(waterPin);
+  printf("DATO AGUA: %d\n", water);
+  if(humInt > 70 || water < 200){
+    printf("APAGO\n");
+    digitalWrite (relayPin, LOW);
+  } 
+  else if(humInt < 20 || water > 700){
+    printf("ENCIENDO\n");
+    digitalWrite (relayPin, HIGH);
+  }
 }
