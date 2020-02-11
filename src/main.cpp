@@ -65,10 +65,10 @@ void setup() {
 }
 
 void loop() {
-  // ArduinoOTA.handle();
-  // if ( !tb.connected() ) {
-  //   reconnect();
-  // }
+  ArduinoOTA.handle();
+  if ( !tb.connected() ) {
+    reconnect();
+  }
   scheduler();
   delay(2000);
 }
@@ -157,10 +157,10 @@ void reconnect() {
 void scheduler() {
   enviroment();
   delay(500);
-  //ground();
-  //delay(500);
-  // sendData();
-  // delay(2000);
+  ground();
+  delay(500);
+  sendData();
+  delay(2000);
 }
 
 void sendData() {
@@ -257,9 +257,9 @@ void ground() {
   delay(500);
   getHumInt();
   checkWatering();
-  //delay(500);
-  // getTempInt();
-  // delay(500);
+  delay(500);
+  getTempInt();
+  delay(500);
 }
 
 void getWeight(){
