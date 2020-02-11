@@ -59,7 +59,7 @@ void checkWatering();
 void setup() {
   Serial.begin(115200);
   analogReadResolution(10);
-  //initOta();
+  initOta();
   initI2C();
   initGPIOs();
 }
