@@ -55,7 +55,7 @@ void AnalogSensors::readTempInt() {
 }
 
 void AnalogSensors::readWaterLevel() {
-  int waterAmount = analogRead(waterPin);
+    waterAmount = analogRead(waterPin);
   // printf("DATO AGUA: %d\n", waterAmount);
 }
 
